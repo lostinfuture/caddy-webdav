@@ -1,0 +1,4 @@
+Caddyfile
+media/
+*.log
+.env

@@ -1,0 +1,51 @@
+# ============================================================================
+# High-Performance Caddy + WebDAV Configuration
+# Drop-in compatible with juvenn/caddy-dav & mholt/caddy-webdav
+# ============================================================================
+{
+	# Required when using `webdav` outside of an explicit `route` block
+	order webdav before file_server
+
+	# Performance & large-file transfer tuning
+	servers {
+		timeouts {
+			# Disable read/write body timeouts so multi-GB WebDAV PUT/GET transfers
+			# over slower links never abort mid-stream
+			read_body   0
+			read_header 15s
+			write       0
+			idle        5m
+		}
+	}
+}
+
+media.local:8080 {
+	root * /var/media
+
+	# Compress XML PROPFIND responses & HTML directory listings (~85% size reduction)
+	# Caddy automatically skips already-compressed media (.mp4, .mkv, .jpg, .zip, etc.)
+	encode zstd gzip
+
+	# Remove cap on upload size for large backups/media
+	request_body {
+		max_size 0
+	}
+
+	# Optional: HTTP Basic Auth (Caddy 2.8+ renamed `basicauth` -> `basic_auth`)
+	# Tip: Generate hash with `docker run --rm lostinfuture/caddy-webdav caddy hash-password --plaintext 'your-password'`
+	# basic_auth {
+	# 	{$WEBDAV_USER:admin} {$WEBDAV_PASSWORD_HASH}
+	# }
+
+	# Route GET and HEAD requests to `file_server browse` for browser-friendly UI
+	# and range/download size checks, while passing PROPFIND/PUT/MKCOL/DELETE/etc. to `webdav`
+	@get method GET HEAD
+
+	route {
+		file_server @get browse {
+			# Hide macOS/Windows metadata clutter in browser listings
+			hide .DS_Store ._* Thumbs.db desktop.ini
+		}
+		webdav
+	}
+}
