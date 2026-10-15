@@ -10,7 +10,7 @@ Pre-built, multi-arch (`linux/amd64`, `linux/arm64`, `linux/arm/v7`) [Caddy](htt
 Designed as an up-to-date, vulnerability-patched, drop-in replacement for [`juvenn/caddy-dav`](https://github.com/juvenn/caddy-dav):
 
 - **Latest Caddy & Go toolchain** (`Caddy v2.11.7`, pure-Go static binary `CGO_ENABLED=0` with stripped debug symbols).
-- **Hardened Alpine runtime**: Runs `apk upgrade --no-cache` during build and rebuilds weekly via GitHub Actions to eliminate OS and Go stdlib CVEs.
+- **Zero-OS-Package `scratch` Runtime**: Ships only the static `/usr/bin/caddy` binary, TLS CA roots, and `/etc/mime.types` (`FROM scratch` — no `busybox`, `apk`, `curl`, or `openssl` attack surface) and rebuilds weekly via GitHub Actions.
 - **100% Configuration Compatible**: Uses the exact same paths (`/etc/caddy/Caddyfile`, `/data`, `/config`) and `webdav` Caddyfile syntax.
 
 ## Pull Image
@@ -118,8 +118,8 @@ Optimized specifically for high-bitrate 4K HDR / Dolby Vision Remux streaming ov
    Applying `encode` globally wraps `http.ResponseWriter`, which can bypass `sendfile(2)` on `GET` requests. Scoping `encode @propfind zstd gzip` compresses verbose WebDAV `PROPFIND` XML directory listings by ~85% (making Infuse library scans fast) while keeping `GET` video streams 100% zero-copy.
 3. **Use `:8080` + `auto_https off` on Local LAN**:
    In Caddy 2, specifying a hostname like `media.local:8080` without `http://` triggers Caddy's internal CA (`tls internal`) and strict `Host` header matching. Using `:8080` with `auto_https off` serves plain HTTP on port `8080` whether Infuse connects via IP (`192.168.x.x:8080`), `apple.local:8080`, or `media.local:8080`.
-4. **Go Runtime Memory Cap (`GOMEMLIMIT=256MiB`)**:
-   Keeps Go's garbage collector bounded on small servers/NAS devices during concurrent 4K Remux transfers.
+4. **Go Runtime Memory Cap (`GOMEMLIMIT=512MiB`)**:
+   Baked into the image (`ENV GOMEMLIMIT=512MiB`) to keep Go's garbage collector bounded during concurrent 4K Remux transfers without needing extra `-e` flags.
 
 ---
 
