@@ -6,20 +6,10 @@ services:
     container_name: caddy-webdav
     restart: unless-stopped
     ports:
-      - "80:80"
-      - "443:443"
-      - "443:443/udp"
       - "8080:8080"
     environment:
-      # Soft memory limit for Go runtime to prevent OOM spikes during large WebDAV transfers
+      # Soft memory limit for Go runtime during heavy 4K Remux streaming / library indexing
       - GOMEMLIMIT=256MiB
-      # Optional credentials if referenced in Caddyfile via {$WEBDAV_USER} / {$WEBDAV_PASSWORD_HASH}
-      # - WEBDAV_USER=admin
-      # - WEBDAV_PASSWORD_HASH=$$2a$$12$$...
-    sysctls:
-      # Increase UDP buffers for high-throughput HTTP/3 (QUIC) transfers
-      - net.core.rmem_max=7500000
-      - net.core.wmem_max=7500000
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - ./media:/var/media

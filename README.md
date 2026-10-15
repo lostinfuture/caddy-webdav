@@ -35,8 +35,6 @@ docker pull ghcr.io/lostinfuture/caddy-webdav:2.11.7
 
 ### 1. Minimal WebDAV Server (Drop-in Compatible)
 
-Put the following in your `Caddyfile`:
-
 ```caddyfile
 {
   order webdav before file_server
@@ -50,7 +48,7 @@ media.local:8080 {
 
 ### 2. WebDAV + Browser Directory Listing
 
-WebDAV returns XML on `PROPFIND`, which browsers don't render as a file explorer on `GET`. Route `GET` and `HEAD` requests to `file_server browse` while sending all WebDAV methods (`PROPFIND`, `OPTIONS`, `PUT`, `MKCOL`, `DELETE`, `MOVE`, `COPY`, `LOCK`, `UNLOCK`) to `webdav`:
+Route `GET` and `HEAD` requests to `file_server browse` while sending all WebDAV methods (`PROPFIND`, `OPTIONS`, `PUT`, `MKCOL`, `DELETE`, `MOVE`, `COPY`, `LOCK`, `UNLOCK`) to `webdav`:
 
 ```caddyfile
 {
@@ -67,32 +65,33 @@ media.local:8080 {
 }
 ```
 
-### 3. Authenticated & Performance-Tuned Setup (Recommended)
+### 3. Local LAN Video Streaming — Apple TV + Infuse Tuned (No Auth)
 
-> [!IMPORTANT]
-> In Caddy **v2.8+**, the `basicauth` directive was renamed to `basic_auth`. If migrating from an older `Caddyfile`, update `basicauth` to `basic_auth`.
+Optimized specifically for high-bitrate 4K HDR / Dolby Vision Remux streaming over local LAN to **Infuse** on Apple TV:
 
 ```caddyfile
 {
   order webdav before file_server
+  auto_https off
 
   servers {
+    protocols h1 h2c
     timeouts {
-      # Prevent large multi-GB WebDAV uploads/downloads from timing out
       read_body   0
       read_header 15s
       write       0
-      idle        5m
+      idle        10m
     }
   }
 }
 
-media.local:8080 {
+:8080 {
   root * /var/media
 
-  # Compresses verbose WebDAV XML PROPFIND responses & HTML listings by ~85%
-  # (Caddy automatically skips already-compressed media like .mp4, .jpg, .zip)
-  encode zstd gzip
+  # Compress ONLY WebDAV PROPFIND XML responses (~85% smaller -> faster Infuse folder indexing)
+  # while keeping GET video streams uncompressed for Linux kernel zero-copy sendfile(2) DMA
+  @propfind method PROPFIND
+  encode @propfind zstd gzip
 
   request_body {
     max_size 0
@@ -101,12 +100,8 @@ media.local:8080 {
   @get method GET HEAD
 
   route {
-    basic_auth {
-      # Generate with: docker run --rm lostinfuture/caddy-webdav caddy hash-password --plaintext 'secret'
-      admin $2a$12$......................................................
-    }
     file_server @get browse {
-      hide .DS_Store ._* Thumbs.db desktop.ini
+      hide .DS_Store ._* Thumbs.db desktop.ini .Spotlight-V100 .Trashes
     }
     webdav
   }
@@ -115,18 +110,16 @@ media.local:8080 {
 
 ---
 
-## Performance & Security Tweaks
+## Performance & Config Tweaks for Apple TV + Infuse
 
-1. **Include `HEAD` in `@get` Matcher (`@get method GET HEAD`)**:
-   Older snippets only matched `@get method GET`, causing `HEAD` requests from browsers and media players to hit `webdav` instead of `file_server` and breaking download size/range preflights.
-2. **Enable `encode zstd gzip`**:
-   WebDAV `PROPFIND` responses on large folders generate verbose XML payloads. Enabling compression speeds up directory listing in clients that support `Accept-Encoding` (`rclone`, modern browsers, mobile clients) without affecting binary media streaming.
-3. **Bcrypt Cost vs. `argon2id` for Stateless WebDAV Auth**:
-   WebDAV sends `Authorization: Basic ...` on **every request**. Caddy caches verified credentials in memory, so standard `bcrypt` (cost `12`–`14`) or `argon2id` works well while protecting against brute-force attempts.
-4. **Go Runtime Memory Cap (`GOMEMLIMIT`)**:
-   On small devices (Raspberry Pi, NAS, micro-VPS), set `GOMEMLIMIT=256MiB` in your container environment to keep Go's garbage collector bounded during heavy WebDAV transfers.
-5. **HTTP/3 (QUIC) UDP Buffers**:
-   Increase container/host UDP buffers (`net.core.rmem_max=7500000`, `net.core.wmem_max=7500000`) so Caddy's QUIC stack achieves full throughput.
+1. **Zero-Copy `sendfile(2)` Streaming (`@get method GET HEAD` + `file_server`)**:
+   Routing `GET` and `HEAD` to Caddy's native `file_server` allows HTTP byte-range requests (`Range: bytes=...`) used by Infuse for seeking and streaming to use the Linux kernel's `sendfile(2)` syscall (DMA directly from filesystem page cache to the network socket without copying through Go userspace buffers).
+2. **Scope Compression to `@propfind method PROPFIND`**:
+   Applying `encode` globally wraps `http.ResponseWriter`, which can bypass `sendfile(2)` on `GET` requests. Scoping `encode @propfind zstd gzip` compresses verbose WebDAV `PROPFIND` XML directory listings by ~85% (making Infuse library scans fast) while keeping `GET` video streams 100% zero-copy.
+3. **Use `:8080` + `auto_https off` on Local LAN**:
+   In Caddy 2, specifying a hostname like `media.local:8080` without `http://` triggers Caddy's internal CA (`tls internal`) and strict `Host` header matching. Using `:8080` with `auto_https off` serves plain HTTP on port `8080` whether Infuse connects via IP (`192.168.x.x:8080`), `apple.local:8080`, or `media.local:8080`.
+4. **Go Runtime Memory Cap (`GOMEMLIMIT=256MiB`)**:
+   Keeps Go's garbage collector bounded on small servers/NAS devices during concurrent 4K Remux transfers.
 
 ---
 

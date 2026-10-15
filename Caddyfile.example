@@ -1,50 +1,50 @@
 # ============================================================================
-# High-Performance Caddy + WebDAV Configuration
+# Caddy + WebDAV Configuration — Tuned for Local LAN & Apple TV (Infuse)
 # Drop-in compatible with juvenn/caddy-dav & mholt/caddy-webdav
 # ============================================================================
 {
 	# Required when using `webdav` outside of an explicit `route` block
 	order webdav before file_server
 
-	# Performance & large-file transfer tuning
+	# Local LAN streaming — disable automatic HTTPS / ACME cert provisioning
+	auto_https off
+
+	# Performance & large video streaming tuning
 	servers {
+		# HTTP/1.1 + h2c on LAN for low-overhead TCP streaming
+		protocols h1 h2c
 		timeouts {
-			# Disable read/write body timeouts so multi-GB WebDAV PUT/GET transfers
-			# over slower links never abort mid-stream
+			# Never abort long 4K Remux streams or large WebDAV uploads
 			read_body   0
 			read_header 15s
 			write       0
-			idle        5m
+			idle        10m
 		}
 	}
 }
 
-media.local:8080 {
+# Listen on port 8080 for any local hostname or IP (e.g., http://apple.local:8080, http://media.local:8080)
+:8080 {
 	root * /var/media
 
-	# Compress XML PROPFIND responses & HTML directory listings (~85% size reduction)
-	# Caddy automatically skips already-compressed media (.mp4, .mkv, .jpg, .zip, etc.)
-	encode zstd gzip
+	# Compress ONLY WebDAV PROPFIND XML directory listings (~85% smaller -> faster Infuse library scans).
+	# Leaving GET video streams uncompressed preserves Linux kernel zero-copy `sendfile(2)` DMA!
+	@propfind method PROPFIND
+	encode @propfind zstd gzip
 
-	# Remove cap on upload size for large backups/media
+	# Remove cap on upload size when copying movies/shows to the share over WebDAV
 	request_body {
 		max_size 0
 	}
 
-	# Optional: HTTP Basic Auth (Caddy 2.8+ renamed `basicauth` -> `basic_auth`)
-	# Tip: Generate hash with `docker run --rm lostinfuture/caddy-webdav caddy hash-password --plaintext 'your-password'`
-	# basic_auth {
-	# 	{$WEBDAV_USER:admin} {$WEBDAV_PASSWORD_HASH}
-	# }
-
-	# Route GET and HEAD requests to `file_server browse` for browser-friendly UI
-	# and range/download size checks, while passing PROPFIND/PUT/MKCOL/DELETE/etc. to `webdav`
+	# Route GET and HEAD requests to `file_server` for zero-copy byte-range video streaming
+	# (and browser directory listing), while passing PROPFIND/OPTIONS/PUT/DELETE/MOVE to `webdav`
 	@get method GET HEAD
 
 	route {
 		file_server @get browse {
-			# Hide macOS/Windows metadata clutter in browser listings
-			hide .DS_Store ._* Thumbs.db desktop.ini
+			# Hide macOS/Windows metadata clutter from browser & WebDAV listings
+			hide .DS_Store ._* Thumbs.db desktop.ini .Spotlight-V100 .Trashes
 		}
 		webdav
 	}
