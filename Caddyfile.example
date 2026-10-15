@@ -23,8 +23,8 @@
 	}
 }
 
-# Listen on port 8080 for any local hostname or IP (e.g., http://apple.local:8080, http://media.local:8080)
-:8080 {
+# Listen on port 80 for any local hostname or IP (e.g., http://apple.local, http://media.local)
+:80 {
 	root * /var/media
 
 	# Compress ONLY WebDAV PROPFIND XML directory listings (~85% smaller -> faster Infuse library scans).

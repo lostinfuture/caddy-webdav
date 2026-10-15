@@ -6,21 +6,17 @@ services:
     container_name: caddy-webdav
     restart: unless-stopped
     ports:
-      - "8080:8080"
+      - "80:80"
     environment:
       # Soft memory limit for Go runtime during heavy 4K Remux streaming / library indexing (baked into image as 512MiB by default)
       - GOMEMLIMIT=512MiB
     volumes:
-      - ./Caddyfile:/etc/caddy/Caddyfile:ro
-      - ./media:/var/media
-      - caddy_data:/data
-      - caddy_config:/config
+      # Place your Caddyfile at /path/to/caddy/conf/Caddyfile on the host
+      - /path/to/caddy/conf:/etc/caddy
+      - /path/to/caddy/data:/data
+      - /path/to/media:/var/media
     healthcheck:
       test: ["CMD", "caddy", "version"]
       interval: 30s
       timeout: 5s
       retries: 3
-
-volumes:
-  caddy_data:
-  caddy_config:
