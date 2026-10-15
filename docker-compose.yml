@@ -10,6 +10,10 @@ services:
     environment:
       # Soft memory limit for Go runtime during heavy 4K Remux streaming / library indexing (baked into image as 512MiB by default)
       - GOMEMLIMIT=512MiB
+      # Access log destination: `stdout` (default), `stderr`, `discard` (disable), or `file /data/access.log`
+      - ACCESS_LOG_OUTPUT=stdout
+      # Access log format: `console` (default) or `json`
+      - ACCESS_LOG_FORMAT=console
     volumes:
       # Place your Caddyfile at /path/to/caddy/conf/Caddyfile on the host
       - /path/to/caddy/conf:/etc/caddy
@@ -20,3 +24,8 @@ services:
       interval: 30s
       timeout: 5s
       retries: 3
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"

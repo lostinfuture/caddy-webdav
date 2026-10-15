@@ -25,6 +25,14 @@
 
 # Listen on port 80 for any local hostname or IP (e.g., http://apple.local, http://media.local)
 :80 {
+	# HTTP/WebDAV access logs — configurable via container environment variables:
+	# - ACCESS_LOG_OUTPUT: `stdout` (default, for `docker logs`), `stderr`, `discard` (disable), or `file /data/access.log`
+	# - ACCESS_LOG_FORMAT: `console` (default, human-readable) or `json`
+	log {
+		output {$ACCESS_LOG_OUTPUT:stdout}
+		format {$ACCESS_LOG_FORMAT:console}
+	}
+
 	root * /var/media
 
 	# Compress ONLY WebDAV PROPFIND XML directory listings (~85% smaller -> faster Infuse library scans).

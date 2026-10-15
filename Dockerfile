@@ -73,6 +73,8 @@ ENV CADDY_VERSION=v${CADDY_VERSION#v}
 ENV XDG_CONFIG_HOME=/config
 ENV XDG_DATA_HOME=/data
 ENV GOMEMLIMIT=512MiB
+ENV ACCESS_LOG_OUTPUT=stdout
+ENV ACCESS_LOG_FORMAT=console
 
 LABEL org.opencontainers.image.title="caddy-webdav" \
       org.opencontainers.image.description="Hardened pre-built Caddy image with WebDAV plugin (mholt/caddy-webdav)" \

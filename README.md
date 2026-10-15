@@ -79,6 +79,10 @@ Save one of the configurations below as `Caddyfile` in your mounted config direc
 }
 
 :80 {
+  log {
+    output {$ACCESS_LOG_OUTPUT:stdout}
+    format {$ACCESS_LOG_FORMAT:console}
+  }
   root * /var/media
   webdav
 }
@@ -94,6 +98,10 @@ Route `GET` and `HEAD` requests to `file_server browse` while sending all WebDAV
 }
 
 :80 {
+  log {
+    output {$ACCESS_LOG_OUTPUT:stdout}
+    format {$ACCESS_LOG_FORMAT:console}
+  }
   @get method GET HEAD
   root * /var/media
   route {
@@ -124,6 +132,14 @@ Optimized specifically for high-bitrate 4K HDR / Dolby Vision Remux streaming ov
 }
 
 :80 {
+  # HTTP/WebDAV access logs — configurable via environment variables:
+  # - ACCESS_LOG_OUTPUT: `stdout` (default), `stderr`, `discard` (disable), or `file /data/access.log`
+  # - ACCESS_LOG_FORMAT: `console` (default) or `json`
+  log {
+    output {$ACCESS_LOG_OUTPUT:stdout}
+    format {$ACCESS_LOG_FORMAT:console}
+  }
+
   root * /var/media
 
   # Compress ONLY WebDAV PROPFIND XML responses (~85% smaller -> faster Infuse folder indexing)
@@ -147,6 +163,14 @@ Optimized specifically for high-bitrate 4K HDR / Dolby Vision Remux streaming ov
 ```
 
 ---
+
+## Environment Variables
+
+| Variable | Default | Description |
+| :--- | :--- | :--- |
+| `ACCESS_LOG_OUTPUT` | `stdout` | Access log destination when using `{$ACCESS_LOG_OUTPUT:stdout}` in `Caddyfile`: `stdout` (view via `docker logs`), `stderr`, `discard` (disable access logs), or `file /data/access.log` |
+| `ACCESS_LOG_FORMAT` | `console` | Access log format when using `{$ACCESS_LOG_FORMAT:console}` in `Caddyfile`: `console` (human-readable) or `json` (structured) |
+| `GOMEMLIMIT` | `512MiB` | Soft memory cap for the Go runtime garbage collector during heavy 4K Remux transfers |
 
 ## Performance & Config Tweaks for Apple TV + Infuse
 
