@@ -12,8 +12,8 @@ services:
       - GOMEMLIMIT=512MiB
       # Access log destination: `stdout` (default), `stderr`, `discard` (disable), or `file /data/access.log`
       - ACCESS_LOG_OUTPUT=stdout
-      # Access log format: `console` (default) or `json`
-      - ACCESS_LOG_FORMAT=console
+      # Log format for both runtime and access logs: `json` (default) or `console`
+      - ACCESS_LOG_FORMAT=json
     volumes:
       # Place your Caddyfile at /path/to/caddy/conf/Caddyfile on the host
       - /path/to/caddy/conf:/etc/caddy

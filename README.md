@@ -76,12 +76,15 @@ Save one of the configurations below as `Caddyfile` in your mounted config direc
 ```caddyfile
 {
   order webdav before file_server
+  log {
+    format {$ACCESS_LOG_FORMAT:json}
+  }
 }
 
 :80 {
   log {
     output {$ACCESS_LOG_OUTPUT:stdout}
-    format {$ACCESS_LOG_FORMAT:console}
+    format {$ACCESS_LOG_FORMAT:json}
   }
   root * /var/media
   webdav
@@ -95,12 +98,15 @@ Route `GET` and `HEAD` requests to `file_server browse` while sending all WebDAV
 ```caddyfile
 {
   order webdav before file_server
+  log {
+    format {$ACCESS_LOG_FORMAT:json}
+  }
 }
 
 :80 {
   log {
     output {$ACCESS_LOG_OUTPUT:stdout}
-    format {$ACCESS_LOG_FORMAT:console}
+    format {$ACCESS_LOG_FORMAT:json}
   }
   @get method GET HEAD
   root * /var/media
@@ -120,6 +126,10 @@ Optimized specifically for high-bitrate 4K HDR / Dolby Vision Remux streaming ov
   order webdav before file_server
   auto_https off
 
+  log {
+    format {$ACCESS_LOG_FORMAT:json}
+  }
+
   servers {
     protocols h1 h2c
     timeouts {
@@ -134,10 +144,10 @@ Optimized specifically for high-bitrate 4K HDR / Dolby Vision Remux streaming ov
 :80 {
   # HTTP/WebDAV access logs — configurable via environment variables:
   # - ACCESS_LOG_OUTPUT: `stdout` (default), `stderr`, `discard` (disable), or `file /data/access.log`
-  # - ACCESS_LOG_FORMAT: `console` (default) or `json`
+  # - ACCESS_LOG_FORMAT: `json` (default, matches Caddy runtime logs) or `console`
   log {
     output {$ACCESS_LOG_OUTPUT:stdout}
-    format {$ACCESS_LOG_FORMAT:console}
+    format {$ACCESS_LOG_FORMAT:json}
   }
 
   root * /var/media
@@ -169,7 +179,7 @@ Optimized specifically for high-bitrate 4K HDR / Dolby Vision Remux streaming ov
 | Variable | Default | Description |
 | :--- | :--- | :--- |
 | `ACCESS_LOG_OUTPUT` | `stdout` | Access log destination when using `{$ACCESS_LOG_OUTPUT:stdout}` in `Caddyfile`: `stdout` (view via `docker logs`), `stderr`, `discard` (disable access logs), or `file /data/access.log` |
-| `ACCESS_LOG_FORMAT` | `console` | Access log format when using `{$ACCESS_LOG_FORMAT:console}` in `Caddyfile`: `console` (human-readable) or `json` (structured) |
+| `ACCESS_LOG_FORMAT` | `json` | Log format for both global runtime and HTTP access logs: `json` (default, parsed uniformly by Docker/Portainer/Dozzle log viewers) or `console` |
 | `GOMEMLIMIT` | `512MiB` | Soft memory cap for the Go runtime garbage collector during heavy 4K Remux transfers |
 
 ## Performance & Config Tweaks for Apple TV + Infuse

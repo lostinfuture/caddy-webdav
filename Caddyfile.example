@@ -9,6 +9,11 @@
 	# Local LAN streaming — disable automatic HTTPS / ACME cert provisioning
 	auto_https off
 
+	# Match global runtime log format with access log format (`json` by default)
+	log {
+		format {$ACCESS_LOG_FORMAT:json}
+	}
+
 	# Performance & large video streaming tuning
 	servers {
 		# HTTP/1.1 + h2c on LAN for low-overhead TCP streaming
@@ -27,10 +32,10 @@
 :80 {
 	# HTTP/WebDAV access logs — configurable via container environment variables:
 	# - ACCESS_LOG_OUTPUT: `stdout` (default, for `docker logs`), `stderr`, `discard` (disable), or `file /data/access.log`
-	# - ACCESS_LOG_FORMAT: `console` (default, human-readable) or `json`
+	# - ACCESS_LOG_FORMAT: `json` (default, matches Caddy runtime logs) or `console`
 	log {
 		output {$ACCESS_LOG_OUTPUT:stdout}
-		format {$ACCESS_LOG_FORMAT:console}
+		format {$ACCESS_LOG_FORMAT:json}
 	}
 
 	root * /var/media
