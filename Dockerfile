@@ -24,15 +24,22 @@ RUN set -eux; \
     if [ "${TARGETARCH}" = "arm" ] && [ -n "${TARGETVARIANT}" ]; then \
         export GOARM="${TARGETVARIANT#v}"; \
     fi; \
+    GO_TOOLCHAIN_VER="$(wget -qO- https://proxy.golang.org/golang.org/toolchain/@v/list | grep -Eo '^v0\.0\.1-go[0-9]+\.[0-9]+\.[0-9]+\.linux-amd64$' | sed -E 's/^v0\.0\.1-(go[0-9]+\.[0-9]+\.[0-9]+)\.linux-amd64$/\1/' | sort -V | tail -n1)"; \
+    export GOTOOLCHAIN="${GO_TOOLCHAIN_VER}+auto"; \
     X_NET_VER="$(go list -m -f '{{.Version}}' golang.org/x/net@latest)"; \
     X_CRYPTO_VER="$(go list -m -f '{{.Version}}' golang.org/x/crypto@latest)"; \
-    echo "Patching Go dependencies: golang.org/x/net@${X_NET_VER}, golang.org/x/crypto@${X_CRYPTO_VER}"; \
+    echo "Using Go toolchain: $(go version) | Patching Go dependencies: golang.org/x/net@${X_NET_VER}, golang.org/x/crypto@${X_CRYPTO_VER} (stripping deprecated openpgp)"; \
+    go mod download "golang.org/x/crypto@${X_CRYPTO_VER}"; \
+    cp -R "$(go env GOMODCACHE)/golang.org/x/crypto@${X_CRYPTO_VER}" /tmp/x-crypto; \
+    chmod -R u+w /tmp/x-crypto; \
+    rm -rf /tmp/x-crypto/openpgp; \
     CGO_ENABLED=0 GOOS="${TARGETOS}" GOARCH="${TARGETARCH}" \
         xcaddy build "v${CADDY_VERSION#v}" \
         --output /usr/bin/caddy \
         --with github.com/mholt/caddy-webdav \
         --replace "golang.org/x/net=golang.org/x/net@${X_NET_VER}" \
-        --replace "golang.org/x/crypto=golang.org/x/crypto@${X_CRYPTO_VER}"; \
+        --replace "golang.org/x/crypto=/tmp/x-crypto"; \
+    rm -rf /tmp/x-crypto; \
     mkdir -p \
         /rootfs/config/caddy \
         /rootfs/data/caddy \
