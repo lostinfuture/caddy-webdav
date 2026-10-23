@@ -1,6 +1,6 @@
 .git
 .github
 *.md
-Caddyfile*
+Caddyfile
 docker-compose*.yml
 media/

@@ -1,5 +1,7 @@
 # ============================================================================
-# Caddy + WebDAV Configuration — Tuned for Local LAN & Apple TV (Infuse)
+# Caddy + WebDAV — local media streaming for Apple TV (Infuse)
+# This file is baked into the image as /etc/caddy/Caddyfile.
+# Mount your own file there only when you want to replace it.
 # Drop-in compatible with juvenn/caddy-dav & mholt/caddy-webdav
 # ============================================================================
 {
@@ -20,28 +22,28 @@
 		protocols h1 h2c
 		timeouts {
 			# Never abort long 4K Remux streams or large WebDAV uploads
-			read_body   0
+			read_body 0
 			read_header 15s
-			write       0
-			idle        10m
+			write 0
+			idle 10m
 		}
 	}
 }
 
 # Listen on port 80 for any local hostname or IP (e.g., http://apple.local, http://media.local)
 :80 {
-	# HTTP/WebDAV access logs — configurable via container environment variables:
-	# - ACCESS_LOG_OUTPUT: `stdout` (default, for `docker logs`), `stderr`, `discard` (disable), or `file /data/access.log`
-	# - ACCESS_LOG_FORMAT: `json` (default, matches Caddy runtime logs) or `console`
+	# Request logs are off so scrubbing a movie does not write a line per range.
+	# Set ACCESS_LOG_OUTPUT=stdout (or stderr, or `file /data/access.log`) to turn them on.
+	# ACCESS_LOG_FORMAT is `json` or `console`.
 	log {
-		output {$ACCESS_LOG_OUTPUT:stdout}
+		output {$ACCESS_LOG_OUTPUT:discard}
 		format {$ACCESS_LOG_FORMAT:json}
 	}
 
 	root * /var/media
 
-	# Compress ONLY WebDAV PROPFIND XML directory listings (~85% smaller -> faster Infuse library scans).
-	# Leaving GET video streams uncompressed preserves Linux kernel zero-copy `sendfile(2)` DMA!
+	# Compress WebDAV PROPFIND listings so Infuse library scans move less data.
+	# Video responses stay uncompressed so Linux can sendfile them.
 	@propfind method PROPFIND
 	encode @propfind zstd gzip
 
@@ -56,7 +58,7 @@
 
 	route {
 		file_server @get browse {
-			# Hide macOS/Windows metadata clutter from browser & WebDAV listings
+			# Browser listings only. WebDAV PROPFIND (what Infuse scans) still shows these.
 			hide .DS_Store ._* Thumbs.db desktop.ini .Spotlight-V100 .Trashes
 		}
 		webdav

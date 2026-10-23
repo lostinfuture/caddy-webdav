@@ -16,7 +16,8 @@ on:
       - "[0-9]+.[0-9]+.[0-9]+"
       - "v[0-9]+.[0-9]+.[0-9]+"
   schedule:
-    # Rebuild weekly (Monday 04:00 UTC) to pick up new Caddy releases and Alpine OS security updates
+    # Rebuild weekly (Monday 04:00 UTC) to pick up new Caddy releases and patched Go dependencies.
+    # The published runtime is FROM scratch, so Alpine package updates never ship in the image.
     - cron: "0 4 * * 1"
 
 permissions:
@@ -147,6 +148,16 @@ jobs:
             --sbom=true \
             ${TAG_ARGS} \
             --push .
+
+      # amd64 is requested during the build (PROPFIND + a byte range).
+      # These two cannot run inside the cross-compile stage, so run them here.
+      - name: Run arm binaries under QEMU
+        run: |
+          set -euo pipefail
+          IMAGE="ghcr.io/${{ github.repository_owner }}/caddy-webdav:${CADDY_VERSION}"
+          for platform in linux/arm64 linux/arm/v7; do
+            docker run --rm --platform "${platform}" "${IMAGE}" caddy version
+          done
 
       - name: Update Docker Hub Description
         if: steps.dockerhub.outputs.enabled == 'true'

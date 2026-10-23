@@ -10,20 +10,23 @@ services:
     environment:
       # Soft memory limit for Go runtime during heavy 4K Remux streaming / library indexing (baked into image as 512MiB by default)
       - GOMEMLIMIT=512MiB
-      # Access log destination: `stdout` (default), `stderr`, `discard` (disable), or `file /data/access.log`
-      - ACCESS_LOG_OUTPUT=stdout
+      # Request logs are off. Set stdout to watch them with `docker logs`.
+      - ACCESS_LOG_OUTPUT=discard
       # Log format for both runtime and access logs: `json` (default) or `console`
       - ACCESS_LOG_FORMAT=json
     volumes:
-      # Place your Caddyfile at /path/to/caddy/conf/Caddyfile on the host
-      - /path/to/caddy/conf:/etc/caddy
+      # Optional. A directory mounted here replaces the built-in Infuse config.
+      # It must contain a file named Caddyfile (start from Caddyfile.example).
+      # - /path/to/caddy/conf:/etc/caddy
       - /path/to/caddy/data:/data
-      - /path/to/media:/var/media
+      # Writable so Infuse can delete a title when you ask it to.
+      - /path/to/your/movies:/var/media
     healthcheck:
-      test: ["CMD", "caddy", "version"]
+      test: ["CMD", "/usr/bin/healthcheck"]
       interval: 30s
       timeout: 5s
       retries: 3
+      start_period: 5s
     logging:
       driver: "json-file"
       options:

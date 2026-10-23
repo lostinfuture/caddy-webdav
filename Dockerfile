@@ -36,7 +36,7 @@ RUN set -eux; \
     CGO_ENABLED=0 GOOS="${TARGETOS}" GOARCH="${TARGETARCH}" \
         xcaddy build "v${CADDY_VERSION#v}" \
         --output /usr/bin/caddy \
-        --with github.com/mholt/caddy-webdav \
+        --with github.com/mholt/caddy-webdav@v0.0.0-20260127042217-fa2f366b0d75 \
         --replace "golang.org/x/net=golang.org/x/net@${X_NET_VER}" \
         --replace "golang.org/x/crypto=/tmp/x-crypto"; \
     rm -rf /tmp/x-crypto; \
@@ -48,7 +48,7 @@ RUN set -eux; \
         /rootfs/srv \
         /rootfs/tmp \
         /rootfs/usr/bin \
-        /rootfs/usr/share/caddy \
+        /rootfs/var/media \
     ; \
     chmod 1777 /rootfs/config/caddy /rootfs/data/caddy /rootfs/tmp; \
     cp /etc/ssl/certs/ca-certificates.crt /rootfs/etc/ssl/certs/ca-certificates.crt; \
@@ -56,14 +56,50 @@ RUN set -eux; \
     printf 'root:x:0:0:root:/root:/sbin/nologin\nnobody:x:65534:65534:nobody:/:/sbin/nologin\n' > /rootfs/etc/passwd; \
     printf 'root:x:0:\nnobody:x:65534:\n' > /rootfs/etc/group; \
     printf 'hosts: files dns\n' > /rootfs/etc/nsswitch.conf; \
-    wget -O /rootfs/etc/caddy/Caddyfile "https://github.com/caddyserver/dist/raw/33ae08ff08d168572df2956ed14fbc4949880d94/config/Caddyfile"; \
-    wget -O /rootfs/usr/share/caddy/index.html "https://github.com/caddyserver/dist/raw/33ae08ff08d168572df2956ed14fbc4949880d94/welcome/index.html"; \
     cp /usr/bin/caddy /rootfs/usr/bin/caddy; \
     chmod 0755 /rootfs/usr/bin/caddy; \
     setcap cap_net_bind_service=+ep /rootfs/usr/bin/caddy; \
     if [ "${BUILDPLATFORM}" = "${TARGETPLATFORM}" ]; then \
         /rootfs/usr/bin/caddy version; \
         /rootfs/usr/bin/caddy list-modules | grep -q "http.handlers.webdav"; \
+    fi
+
+# Default config is the Infuse library server. A mounted /etc/caddy replaces it.
+COPY Caddyfile.example /rootfs/etc/caddy/Caddyfile
+COPY healthcheck.go /tmp/healthcheck/main.go
+
+# Native builds also start the server and request a folder listing plus a byte range.
+# Cross-compiled builds only produce the binary; CI runs those under QEMU after publish.
+RUN set -eu; \
+    if [ "${TARGETARCH}" = "arm" ] && [ -n "${TARGETVARIANT}" ]; then \
+        export GOARM="${TARGETVARIANT#v}"; \
+    fi; \
+    cd /tmp/healthcheck; \
+    go mod init healthcheck; \
+    CGO_ENABLED=0 GOOS="${TARGETOS}" GOARCH="${TARGETARCH}" \
+        go build -trimpath -ldflags '-s -w' -o /rootfs/usr/bin/healthcheck .; \
+    if [ "${BUILDPLATFORM}" = "${TARGETPLATFORM}" ]; then \
+        mkdir -p /tmp/caddy-smoke/config /tmp/caddy-smoke/data /var/media/Movies; \
+        printf 'sample-video\n' > /var/media/Movies/demo.txt; \
+        XDG_CONFIG_HOME=/tmp/caddy-smoke/config XDG_DATA_HOME=/tmp/caddy-smoke/data \
+            /rootfs/usr/bin/caddy validate --config /rootfs/etc/caddy/Caddyfile --adapter caddyfile; \
+        XDG_CONFIG_HOME=/tmp/caddy-smoke/config XDG_DATA_HOME=/tmp/caddy-smoke/data \
+        ACCESS_LOG_OUTPUT=discard \
+            /rootfs/usr/bin/caddy run --config /rootfs/etc/caddy/Caddyfile --adapter caddyfile & \
+        pid=$!; \
+        ok=0; \
+        i=0; \
+        while [ "$i" -lt 40 ]; do \
+            if /rootfs/usr/bin/healthcheck && /rootfs/usr/bin/healthcheck range; then \
+                ok=1; \
+                break; \
+            fi; \
+            i=$((i + 1)); \
+            sleep 0.25; \
+        done; \
+        kill "$pid" || true; \
+        wait "$pid" || true; \
+        [ "$ok" = 1 ]; \
     fi
 
 # Minimal scratch runtime: contains only the static Caddy binary, TLS CA roots,
@@ -80,11 +116,11 @@ ENV CADDY_VERSION=v${CADDY_VERSION#v}
 ENV XDG_CONFIG_HOME=/config
 ENV XDG_DATA_HOME=/data
 ENV GOMEMLIMIT=512MiB
-ENV ACCESS_LOG_OUTPUT=stdout
+ENV ACCESS_LOG_OUTPUT=discard
 ENV ACCESS_LOG_FORMAT=json
 
 LABEL org.opencontainers.image.title="caddy-webdav" \
-      org.opencontainers.image.description="Hardened pre-built Caddy image with WebDAV plugin (mholt/caddy-webdav)" \
+      org.opencontainers.image.description="Local media streaming for Apple TV and Infuse. Pre-built Caddy image with the WebDAV plugin." \
       org.opencontainers.image.version="v${CADDY_VERSION#v}" \
       org.opencontainers.image.source="https://github.com/lostinfuture/caddy-webdav" \
       org.opencontainers.image.licenses="Apache-2.0"
@@ -95,5 +131,12 @@ EXPOSE 443/udp
 EXPOSE 2019
 
 WORKDIR /srv
+
+# Root is deliberate. Movie folders on a NAS are often mode 750 and unreadable
+# by nobody, so dropping privileges would make the library look empty.
+# cap_net_bind_service on the binary still lets `--user nobody` bind port 80
+# when the files are readable by that user.
+HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 \
+    CMD ["/usr/bin/healthcheck"]
 
 CMD ["caddy", "run", "--config", "/etc/caddy/Caddyfile", "--adapter", "caddyfile"]
