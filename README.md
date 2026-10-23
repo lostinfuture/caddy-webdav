@@ -151,12 +151,13 @@ With `docker run`, single quotes are enough:
 Copy `Caddyfile.example` to `Caddyfile`, add this inside the `:80` block above `root`, and mount that directory on `/etc/caddy` as described in [Changing the config](#changing-the-config):
 
 ```caddyfile
-basic_auth {
+@lan not remote_ip 127.0.0.1 ::1
+basic_auth @lan {
 	infuse {$INFUSE_PASSWORD_HASH}
 }
 ```
 
-Restart the container, then enter user `infuse` and that password in the Infuse share. Deletes from Infuse still work. The password only decides who is allowed to send them.
+Leaving `127.0.0.1` out of `basic_auth` lets the container’s internal healthcheck still run `PROPFIND /` against the WebDAV handler. Restart the container, then enter user `infuse` and that password in the Infuse share. Deletes from Infuse still work. The password only decides who is allowed to send them.
 
 ## Logs and memory
 

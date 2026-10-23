@@ -1,8 +1,7 @@
 // Healthcheck for the baked-in library server.
-// With no arguments it succeeds when PROPFIND / returns 207 Multi-Status
-// (or 401 Unauthorized when basic_auth is configured).
-// `healthcheck range` is the image-build smoke check that strictly requires
-// 207 Multi-Status on PROPFIND / and 206 Partial Content on a byte range GET.
+// With no arguments it succeeds only when PROPFIND / returns 207 Multi-Status.
+// `healthcheck range` is the image-build smoke check that also verifies a byte
+// range of the fixture file is served with 206 Partial Content.
 // `healthcheck version` verifies the compiled binary executes on target arch.
 package main
 
@@ -23,16 +22,16 @@ func main() {
 			return
 		case "range":
 			client := &http.Client{Timeout: 3 * time.Second}
-			propfind(client, false)
+			propfind(client)
 			rangeCheck(client)
 			return
 		}
 	}
 	client := &http.Client{Timeout: 3 * time.Second}
-	propfind(client, true)
+	propfind(client)
 }
 
-func propfind(client *http.Client, allowUnauthorized bool) {
+func propfind(client *http.Client) {
 	req, err := http.NewRequest("PROPFIND", "http://127.0.0.1/", nil)
 	if err != nil {
 		fail("%v", err)
@@ -44,13 +43,9 @@ func propfind(client *http.Client, allowUnauthorized bool) {
 	}
 	defer resp.Body.Close()
 	_, _ = io.Copy(io.Discard, resp.Body)
-	if resp.StatusCode == http.StatusMultiStatus {
-		return
+	if resp.StatusCode != http.StatusMultiStatus {
+		fail("PROPFIND / returned %s", resp.Status)
 	}
-	if allowUnauthorized && resp.StatusCode == http.StatusUnauthorized {
-		return
-	}
-	fail("PROPFIND / returned %s", resp.Status)
 }
 
 func rangeCheck(client *http.Client) {
