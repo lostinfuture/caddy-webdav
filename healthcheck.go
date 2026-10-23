@@ -1,6 +1,9 @@
 // Healthcheck for the baked-in library server.
-// With no arguments it succeeds only when PROPFIND / returns 207.
-// `healthcheck range` is the image-build check that a byte range of the fixture file is served.
+// With no arguments it succeeds when PROPFIND / returns 207 Multi-Status
+// (or 401 Unauthorized when basic_auth is configured).
+// `healthcheck range` is the image-build smoke check that strictly requires
+// 207 Multi-Status on PROPFIND / and 206 Partial Content on a byte range GET.
+// `healthcheck version` verifies the compiled binary executes on target arch.
 package main
 
 import (
@@ -8,19 +11,28 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"runtime"
 	"time"
 )
 
 func main() {
-	client := &http.Client{Timeout: 3 * time.Second}
-	if len(os.Args) > 1 && os.Args[1] == "range" {
-		rangeCheck(client)
-		return
+	if len(os.Args) > 1 {
+		switch os.Args[1] {
+		case "version", "--version":
+			fmt.Printf("healthcheck (%s %s/%s)\n", runtime.Version(), runtime.GOOS, runtime.GOARCH)
+			return
+		case "range":
+			client := &http.Client{Timeout: 3 * time.Second}
+			propfind(client, false)
+			rangeCheck(client)
+			return
+		}
 	}
-	propfind(client)
+	client := &http.Client{Timeout: 3 * time.Second}
+	propfind(client, true)
 }
 
-func propfind(client *http.Client) {
+func propfind(client *http.Client, allowUnauthorized bool) {
 	req, err := http.NewRequest("PROPFIND", "http://127.0.0.1/", nil)
 	if err != nil {
 		fail("%v", err)
@@ -32,9 +44,13 @@ func propfind(client *http.Client) {
 	}
 	defer resp.Body.Close()
 	_, _ = io.Copy(io.Discard, resp.Body)
-	if resp.StatusCode != http.StatusMultiStatus {
-		fail("PROPFIND / returned %s", resp.Status)
+	if resp.StatusCode == http.StatusMultiStatus {
+		return
 	}
+	if allowUnauthorized && resp.StatusCode == http.StatusUnauthorized {
+		return
+	}
+	fail("PROPFIND / returned %s", resp.Status)
 }
 
 func rangeCheck(client *http.Client) {

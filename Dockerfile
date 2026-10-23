@@ -25,6 +25,7 @@ RUN set -eux; \
         export GOARM="${TARGETVARIANT#v}"; \
     fi; \
     GO_TOOLCHAIN_VER="$(wget -qO- https://proxy.golang.org/golang.org/toolchain/@v/list | grep -Eo '^v0\.0\.1-go[0-9]+\.[0-9]+\.[0-9]+\.linux-amd64$' | sed -E 's/^v0\.0\.1-(go[0-9]+\.[0-9]+\.[0-9]+)\.linux-amd64$/\1/' | sort -V | tail -n1)"; \
+    printf '%s' "${GO_TOOLCHAIN_VER}" > /tmp/go-toolchain-ver; \
     export GOTOOLCHAIN="${GO_TOOLCHAIN_VER}+auto"; \
     X_NET_VER="$(go list -m -f '{{.Version}}' golang.org/x/net@latest)"; \
     X_CRYPTO_VER="$(go list -m -f '{{.Version}}' golang.org/x/crypto@latest)"; \
@@ -74,11 +75,13 @@ RUN set -eu; \
     if [ "${TARGETARCH}" = "arm" ] && [ -n "${TARGETVARIANT}" ]; then \
         export GOARM="${TARGETVARIANT#v}"; \
     fi; \
+    export GOTOOLCHAIN="$(cat /tmp/go-toolchain-ver)+auto"; \
     cd /tmp/healthcheck; \
     go mod init healthcheck; \
     CGO_ENABLED=0 GOOS="${TARGETOS}" GOARCH="${TARGETARCH}" \
         go build -trimpath -ldflags '-s -w' -o /rootfs/usr/bin/healthcheck .; \
     if [ "${BUILDPLATFORM}" = "${TARGETPLATFORM}" ]; then \
+        /rootfs/usr/bin/healthcheck version; \
         mkdir -p /tmp/caddy-smoke/config /tmp/caddy-smoke/data /var/media/Movies; \
         printf 'sample-video\n' > /var/media/Movies/demo.txt; \
         XDG_CONFIG_HOME=/tmp/caddy-smoke/config XDG_DATA_HOME=/tmp/caddy-smoke/data \

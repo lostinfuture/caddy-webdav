@@ -151,7 +151,7 @@ With `docker run`, single quotes are enough:
 Copy `Caddyfile.example` to `Caddyfile`, add this inside the `:80` block above `root`, and mount that directory on `/etc/caddy` as described in [Changing the config](#changing-the-config):
 
 ```caddyfile
-basicauth {
+basic_auth {
 	infuse {$INFUSE_PASSWORD_HASH}
 }
 ```
