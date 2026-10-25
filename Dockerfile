@@ -29,7 +29,12 @@ RUN set -eux; \
     export GOTOOLCHAIN="${GO_TOOLCHAIN_VER}+auto"; \
     X_NET_VER="$(go list -m -f '{{.Version}}' golang.org/x/net@latest)"; \
     X_CRYPTO_VER="$(go list -m -f '{{.Version}}' golang.org/x/crypto@latest)"; \
-    echo "Using Go toolchain: $(go version) | Patching Go dependencies: golang.org/x/net@${X_NET_VER}, golang.org/x/crypto@${X_CRYPTO_VER} (stripping deprecated openpgp)"; \
+    CHI_VER="$(go list -m -f '{{.Version}}' github.com/go-chi/chi/v5@latest)"; \
+    if [ "$(printf '%s\n%s\n' v5.4.0 "${CHI_VER}" | sort -V | head -n1)" != "v5.4.0" ]; then \
+        echo "github.com/go-chi/chi/v5@${CHI_VER} is older than v5.4.0 (CVE-2026-114437)" >&2; \
+        exit 1; \
+    fi; \
+    echo "Using Go toolchain: $(go version) | Patching Go dependencies: golang.org/x/net@${X_NET_VER}, golang.org/x/crypto@${X_CRYPTO_VER} (stripping deprecated openpgp), github.com/go-chi/chi/v5@${CHI_VER}"; \
     go mod download "golang.org/x/crypto@${X_CRYPTO_VER}"; \
     cp -R "$(go env GOMODCACHE)/golang.org/x/crypto@${X_CRYPTO_VER}" /tmp/x-crypto; \
     chmod -R u+w /tmp/x-crypto; \
@@ -39,7 +44,9 @@ RUN set -eux; \
         --output /usr/bin/caddy \
         --with github.com/mholt/caddy-webdav@v0.0.0-20260127042217-fa2f366b0d75 \
         --replace "golang.org/x/net=golang.org/x/net@${X_NET_VER}" \
-        --replace "golang.org/x/crypto=/tmp/x-crypto"; \
+        --replace "golang.org/x/crypto=/tmp/x-crypto" \
+        --replace "github.com/go-chi/chi/v5=github.com/go-chi/chi/v5@${CHI_VER}"; \
+    go version -m /usr/bin/caddy | grep -F "github.com/go-chi/chi/v5" | grep -F "${CHI_VER}"; \
     rm -rf /tmp/x-crypto; \
     mkdir -p \
         /rootfs/config/caddy \
